@@ -1,36 +1,49 @@
 package main
 
 import (
+	"context"
 	"log"
-	"net"
+	"net/http"
+	"time"
 
-	"github.com/ahtamoff/Hospital_Service_API/internal/services"
-	"github.com/ahtamoff/Hospital_Service_API/internal/storage"
-	pb "github.com/ahtamoff/Hospital_Service_API/pb"
-	"google.golang.org/grpc"
+	"github.com/gin-gonic/gin"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+
+	"Hospital_Service_API/config"
+	"Hospital_Service_API/internal/handlers"
+	"Hospital_Service_API/internal/service"
+	"Hospital_Service_API/internal/storage"
 )
 
 func main() {
-	storage, err := storage.NewStorage("mongodb://localhost:27017")
+	cfg := config.LoadConfig()
+
+	clientOptions := options.Client().ApplyURI(cfg.MongoURI)
+	client, err := mongo.Connect(context.Background(), clientOptions)
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer client.Disconnect(context.Background())
 
-	appointmentService := &services.AppointmentService{Storage: storage}
-	notificationService := &services.NotificationService{}
-	scheduler := &services.Scheduler{Storage: storage, NotificationService: notificationService}
+	db := client.Database(cfg.DBName)
+	mongoStorage := storage.NewMongoStorage(db)
 
-	grpcServer := grpc.NewServer()
-	pb.RegisterAppointmentServiceServer(grpcServer, &grpc.Server{AppointmentService: appointmentService})
+	// Создание роутера Gin
+	router := gin.Default()
+	handlers.SetupRoutes(router, mongoStorage)
 
-	listener, err := net.Listen("tcp", ":50051")
-	if err != nil {
-		log.Fatal(err)
+	// Запуск сервиса оповещений
+	notificationService := service.NewNotificationService(mongoStorage)
+	go notificationService.Start()
+
+	s := &http.Server{
+		Addr:           ":8080",
+		Handler:        router,
+		ReadTimeout:    10 * time.Second,
+		WriteTimeout:   10 * time.Second,
+		MaxHeaderBytes: 1 << 20,
 	}
 
-	go scheduler.Start()
-
-	if err := grpcServer.Serve(listener); err != nil {
-		log.Fatal(err)
-	}
+	log.Fatal(s.ListenAndServe())
 }

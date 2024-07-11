@@ -1,15 +1,18 @@
-FROM golang:1.16-alpine
+FROM golang:1.22.4-alpine
 
 WORKDIR /app
 
-COPY go.mod .
-COPY go.sum .
+# Копируем go.mod и go.sum для установки зависимостей
+COPY go.mod ./
+COPY go.sum ./
 RUN go mod download
 
+# Копируем остальные файлы проекта
 COPY . .
 
-RUN go build -o /go-appointment-service cmd/main.go
+# Сборка приложения
+RUN go build -o /appointment-service ./cmd
 
-EXPOSE 50051
+EXPOSE 8080
 
-CMD ["/go-appointment-service"]
+CMD [ "/appointment-service" ]

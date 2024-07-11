@@ -2,29 +2,24 @@ version: '3.8'
 
 services:
   mongo:
-    image: mongo:4.4
+    image: mongo:latest
+    container_name: mongo
     ports:
       - "27017:27017"
     volumes:
       - mongo-data:/data/db
-      - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
-    command: ["mongod", "--bind_ip_all"]
-    environment:
-      MONGO_INITDB_DATABASE: appointment_service
-    networks:
-      - mongo-network
 
   app:
     build: .
     ports:
-      - "50051:50051"
+      - "8080:8080"
     depends_on:
       - mongo
-    networks:
-      - mongo-network
-
-networks:
-  mongo-network:
+    environment:
+      - MONGO_URI=mongodb://mongo:27017
+      - DB_NAME=your_db
+    volumes:
+      - .:/app
 
 volumes:
   mongo-data:

@@ -1,61 +1,91 @@
 package storage
 
 import (
+	"Hospital_Service_API/internal/models"
 	"context"
+	"errors"
 	"time"
 
-	"Hospital_Service_API/internal/models"
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-type Storage struct {
-	Client *mongo.Client
+type MongoStorage struct {
+	db *mongo.Database
 }
 
-func NewStorage(uri string) (*Storage, error) {
-	client, err := mongo.Connect(context.Background(), options.Client().ApplyURI(uri))
-	if err != nil {
-		return nil, err
+func NewMongoStorage(db *mongo.Database) *MongoStorage {
+	return &MongoStorage{db: db}
+}
+
+func (s *MongoStorage) CreateAppointment(ctx context.Context, appointment models.Appointment) error {
+	collection := s.db.Collection("appointments")
+
+	// Check if the slot is already taken
+	var existingAppointment models.Appointment
+	filter := bson.M{"doctor_id": appointment.DoctorID, "slot": appointment.Slot}
+	err := collection.FindOne(ctx, filter).Decode(&existingAppointment)
+	if err == nil {
+		return errors.New("slot is already taken")
 	}
-	return &Storage{Client: client}, nil
-}
+	if err != mongo.ErrNoDocuments {
+		return err
+	}
 
-func (s *Storage) GetDoctor(id primitive.ObjectID) (models.Doctor, error) {
-	var doctor models.Doctor
-	collection := s.Client.Database("appointment_service").Collection("doctors")
-	err := collection.FindOne(context.Background(), bson.M{"_id": id}).Decode(&doctor)
-	return doctor, err
-}
-
-func (s *Storage) GetUser(id primitive.ObjectID) (models.User, error) {
-	var user models.User
-	collection := s.Client.Database("appointment_service").Collection("users")
-	err := collection.FindOne(context.Background(), bson.M{"_id": id}).Decode(&user)
-	return user, err
-}
-
-func (s *Storage) BookSlot(appointment models.Appointment) error {
-	collection := s.Client.Database("appointment_service").Collection("appointments")
-	_, err := collection.InsertOne(context.Background(), appointment)
+	_, err = collection.InsertOne(ctx, appointment)
 	return err
 }
 
-func (s *Storage) GetUpcomingAppointments() ([]models.Appointment, error) {
-	var appointments []models.Appointment
-	collection := s.Client.Database("appointment_service").Collection("appointments")
-	cursor, err := collection.Find(context.Background(), bson.M{
+func (s *MongoStorage) IsSlotAvailable(ctx context.Context, doctorID, slot string) bool {
+	collection := s.db.Collection("appointments")
+	filter := bson.M{"doctor_id": doctorID, "slot": slot}
+	count, err := collection.CountDocuments(ctx, filter)
+	return err == nil && count == 0
+}
+
+func (s *MongoStorage) GetAppointmentsBetween(ctx context.Context, start, end time.Time) ([]models.Appointment, error) {
+	collection := s.db.Collection("appointments")
+	filter := bson.M{
 		"slot": bson.M{
-			"$gte": time.Now(),
+			"$gte": start.Format(time.RFC3339),
+			"$lte": end.Format(time.RFC3339),
 		},
-	})
+	}
+
+	var appointments []models.Appointment
+	cursor, err := collection.Find(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
-	if err = cursor.All(context.Background(), &appointments); err != nil {
+	defer cursor.Close(ctx)
+
+	for cursor.Next(ctx) {
+		var appointment models.Appointment
+		if err := cursor.Decode(&appointment); err != nil {
+			return nil, err
+		}
+		appointments = append(appointments, appointment)
+	}
+
+	return appointments, cursor.Err()
+}
+
+func (s *MongoStorage) GetUserByID(ctx context.Context, userID string) (*models.User, error) {
+	collection := s.db.Collection("users")
+	var user models.User
+	filter := bson.M{"id": userID}
+	if err := collection.FindOne(ctx, filter).Decode(&user); err != nil {
 		return nil, err
 	}
-	return appointments, nil
+	return &user, nil
+}
+
+func (s *MongoStorage) GetDoctorByID(ctx context.Context, doctorID string) (*models.Doctor, error) {
+	collection := s.db.Collection("doctors")
+	var doctor models.Doctor
+	filter := bson.M{"id": doctorID}
+	if err := collection.FindOne(ctx, filter).Decode(&doctor); err != nil {
+		return nil, err
+	}
+	return &doctor, nil
 }
