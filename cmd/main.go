@@ -33,9 +33,9 @@ func main() {
 	router := gin.Default()
 	handlers.SetupRoutes(router, mongoStorage)
 
-	// Запуск сервиса оповещений
+	// Запуск сервиса уведомлений
 	notificationService := service.NewNotificationService(mongoStorage)
-	go notificationService.Start()
+	go notificationService.StartNotificationScheduler()
 
 	s := &http.Server{
 		Addr:           ":8080",

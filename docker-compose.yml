@@ -20,6 +20,7 @@ services:
       - DB_NAME=your_db
     volumes:
       - .:/app
+      - ./notifications.log:/app/notifications.log
 
 volumes:
   mongo-data:
