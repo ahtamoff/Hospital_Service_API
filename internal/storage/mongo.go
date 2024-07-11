@@ -38,8 +38,29 @@ func (s *MongoStorage) CreateAppointment(ctx context.Context, appointment models
 
 func (s *MongoStorage) IsSlotAvailable(ctx context.Context, doctorID, slot string) bool {
 	collection := s.db.Collection("appointments")
-	filter := bson.M{"doctor_id": doctorID, "slot": slot}
-	count, err := collection.CountDocuments(ctx, filter)
+	doctorsCollection := s.db.Collection("doctors")
+
+	// Парсим время слота
+	slotTime, err := time.Parse(time.RFC3339, slot)
+	if err != nil {
+		return false // Невалидный формат времени
+	}
+
+	// Проверяем, что слот не является прошлым временем и не менее чем через час
+	if slotTime.Before(time.Now()) || slotTime.Sub(time.Now()).Hours() < 1 {
+		return false
+	}
+
+	// Проверяем, что слот существует у данного доктора
+	doctorFilter := bson.M{"id": doctorID, "slots": slot}
+	count, err := doctorsCollection.CountDocuments(ctx, doctorFilter)
+	if err != nil || count == 0 {
+		return false // Слот не найден у данного доктора
+	}
+
+	// Проверяем, что слот не занят
+	appointmentFilter := bson.M{"doctor_id": doctorID, "slot": slot}
+	count, err = collection.CountDocuments(ctx, appointmentFilter)
 	return err == nil && count == 0
 }
 
