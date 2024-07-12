@@ -5,14 +5,17 @@ import (
 )
 
 type Config struct {
-	MongoURI string
-	DBName   string
+	MongoURI   string
+	DBName     string
+	ServerPort string
+	LogSpeed   string
 }
 
 func LoadConfig() *Config {
 	return &Config{
-		MongoURI: getEnv("MONGO_URI", "mongodb://mongo:27017"), // Убедитесь, что это правильный URI
-		DBName:   getEnv("DB_NAME", "your_db"),
+		MongoURI:   getEnv("MONGO_URI", "mongodb://mongo:27017"),
+		DBName:     getEnv("DB_NAME", "hospital"),
+		ServerPort: getEnv("PORT", ":8080"),
 	}
 }
 

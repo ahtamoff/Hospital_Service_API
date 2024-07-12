@@ -1,6 +1,7 @@
 package main
 
 import (
+	"Hospital_Service_API/config"
 	"Hospital_Service_API/internal/models"
 	"context"
 	"log"
@@ -11,6 +12,7 @@ import (
 )
 
 func main() {
+	cfg := config.LoadConfig()
 	clientOptions := options.Client().ApplyURI("mongodb://mongo:27017")
 	client, err := mongo.Connect(context.Background(), clientOptions)
 	if err != nil {
@@ -18,7 +20,7 @@ func main() {
 	}
 	defer client.Disconnect(context.Background())
 
-	db := client.Database("your_db")
+	db := client.Database(cfg.DBName)
 
 	// Заполнение данных пользователей
 	users := []interface{}{

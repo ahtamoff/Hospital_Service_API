@@ -38,7 +38,7 @@ func main() {
 	go notificationService.StartNotificationScheduler()
 
 	s := &http.Server{
-		Addr:           ":8080",
+		Addr:           cfg.ServerPort,
 		Handler:        router,
 		ReadTimeout:    10 * time.Second,
 		WriteTimeout:   10 * time.Second,

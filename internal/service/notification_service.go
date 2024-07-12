@@ -17,16 +17,17 @@ func NewNotificationService(storage *storage.MongoStorage) *NotificationService 
 }
 
 func (s *NotificationService) StartNotificationScheduler() {
-	ticker := time.NewTicker(10 * time.Second)
+	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
-
+	notifiedAppointmentsTomorrow := make(map[string]bool)
+	notifiedAppointmentsTwoHour := make(map[string]bool)
 	for {
-		s.sendNotifications()
+		s.sendNotifications(notifiedAppointmentsTomorrow, notifiedAppointmentsTwoHour)
 		<-ticker.C
 	}
 }
 
-func (s *NotificationService) sendNotifications() {
+func (s *NotificationService) sendNotifications(notifiedAppointmentsTomorrow, notifiedAppointmentsTwoHour map[string]bool) {
 	logFile, err := os.OpenFile("notifications.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0777)
 	if err != nil {
 		log.Fatalf("Failed to open log file: %v", err)
@@ -35,16 +36,13 @@ func (s *NotificationService) sendNotifications() {
 
 	logger := log.New(logFile, "", log.LstdFlags)
 
-	// Временное отладочное сообщение
-	logger.Println("sendNotifications started")
-
 	ctx := context.Background()
 	now := time.Now()
 	// Определяем завтрашний день с начала до конца
 	tomorrowStart := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, now.Location())
 	tomorrowEnd := tomorrowStart.Add(24 * time.Hour)
 
-	// Два часа спустя от текущего времени
+	// Два часа от текущего времени
 	twoHoursLaterStart := now.Add(2 * time.Hour)
 	twoHoursLaterEnd := twoHoursLaterStart.Add(1 * time.Hour)
 
@@ -73,7 +71,10 @@ func (s *NotificationService) sendNotifications() {
 			logger.Println("Error fetching doctor:", err)
 			continue
 		}
-		logger.Printf("%s | Привет %s! Напоминаем что вы записаны к %s завтра в %s!", now.Format(time.RFC3339), user.Name, doctor.Spec, appointment.Slot)
+		if _, ok := notifiedAppointmentsTomorrow[appointment.ID]; !ok {
+			logger.Printf("%s | Привет %s! Напоминаем что вы записаны к %s завтра в %s!", now.Format(time.RFC3339), user.Name, doctor.Spec, appointment.Slot)
+			notifiedAppointmentsTomorrow[appointment.ID] = true
+		}
 	}
 
 	for _, appointment := range appointmentsTwoHoursLater {
@@ -87,6 +88,9 @@ func (s *NotificationService) sendNotifications() {
 			logger.Println("Error fetching doctor:", err)
 			continue
 		}
-		logger.Printf("%s | Привет %s! Вам через 2 часа к %s в %s!", now.Format(time.RFC3339), user.Name, doctor.Spec, appointment.Slot)
+		if _, ok := notifiedAppointmentsTwoHour[appointment.ID]; !ok {
+			logger.Printf("%s | Привет %s! Вам через 2 часа к %s в %s!", now.Format(time.RFC3339), user.Name, doctor.Spec, appointment.Slot)
+			notifiedAppointmentsTwoHour[appointment.ID] = true
+		}
 	}
 }
