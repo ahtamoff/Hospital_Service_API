@@ -13,7 +13,7 @@ import (
 
 func main() {
 	cfg := config.LoadConfig()
-	clientOptions := options.Client().ApplyURI("mongodb://mongo:27017")
+	clientOptions := options.Client().ApplyURI(cfg.MongoURI)
 	client, err := mongo.Connect(context.Background(), clientOptions)
 	if err != nil {
 		log.Fatal(err)

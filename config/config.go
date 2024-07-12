@@ -8,7 +8,6 @@ type Config struct {
 	MongoURI   string
 	DBName     string
 	ServerPort string
-	LogSpeed   string
 }
 
 func LoadConfig() *Config {
